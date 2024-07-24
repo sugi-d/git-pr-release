@@ -230,6 +230,68 @@ RSpec.describe Git::Pr::Release::CLI do
     it { is_expected.to eq [@pr_3, @pr_4] }
   end
 
+  describe "fetch_squash_merged_pr_numbers_from_github" do
+    subject { @cli.fetch_squash_merged_pr_numbers_from_github }
+
+    before {
+      @cli = configured_cli
+
+      @agent = Sawyer::Agent.new("http://example.com/") do |conn|
+        conn.builder.handlers.delete(Faraday::Adapter::NetHttp)
+        conn.adapter(:test, Faraday::Adapter::Test::Stubs.new)
+      end
+
+      expect(@cli).to receive(:git).with(:log, "--pretty=format:%h", "--abbrev=7", "--no-merges", "--first-parent", "origin/master..origin/staging") {
+        <<~GIT_LOG.each_line
+          d40b097
+          52efc5a
+          001fae8
+          6fd2c99
+          f686bb6
+          e361516
+          37c0e76
+          f030e70
+          0f56174
+          f2d3313
+          d27c8a1
+          b890562
+          ba85c50
+          d61deec
+          b0dd352
+          76a7908
+          7a28e48
+          c42d9bd
+          0b2c97f
+          7d5ca46
+          26c8632
+          f8c0606
+          bb5faec
+          368b334
+          0d617c7
+          6a08d2e
+          f402884
+        GIT_LOG
+      }
+
+      allow(@cli).to receive(:search_issue_numbers).and_return([])
+    }
+
+    it do
+      query_base = "repo:motemen/git-pr-release is:pr is:closed"
+      first_shas = "d40b097 52efc5a 001fae8 6fd2c99 f686bb6 e361516 37c0e76 f030e70 0f56174 f2d3313 " \
+                   "d27c8a1 b890562 ba85c50 d61deec b0dd352 76a7908 7a28e48 c42d9bd 0b2c97f 7d5ca46 " \
+                   "26c8632 f8c0606 bb5faec 368b334 0d617c7"
+      first_query = query_base + " " + first_shas
+
+      second_shas = "6a08d2e f402884"
+      second_query = query_base + " " + second_shas
+
+      subject
+
+      expect(@cli).to have_received(:search_issue_numbers).with(second_query)
+    end
+  end
+
   describe "#create_release_pr" do
     subject { @cli.create_release_pr(@merged_prs) }
 
