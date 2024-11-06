@@ -161,18 +161,27 @@ module Git
           pr_nums = []
           query_base = "repo:#{repository} is:pr is:closed"
           query = query_base
+          max_sha_number_at_once = ((256 - "#{repository}prclosed".length) / 9).floor
           # Make bulk requests with multiple SHAs of the maximum possible length.
           # If multiple SHAs are specified, the issue search API will treat it like an OR search,
           # and all the pull requests will be searched.
           # This is difficult to read from the current documentation, but that is the current
           # behavior and GitHub support has responded that this is the spec.
+          sha_number = 0
           shas.each do |sha|
             # Longer than 256 characters are not supported in the query.
+            # SHA characters will be enclosed in quotes, and then all queries will be concatenated.
+            # For example:
+            # Request URL: /search/issues?q=repo%3motemen%2Fgit-pr-release+is%3Apr+is%3Aclosed+001fae8+52efc5a
+            # The count chararacters will be as follows:
+            # motemen/git-pr-releaseprclosed"001fae8""52efc5a"
             # ref. https://docs.github.com/en/rest/reference/search#limitations-on-query-length
-            if query.length + 1 + sha.length >= 256
+            if sha_number >= max_sha_number_at_once
               pr_nums.concat(search_issue_numbers(query))
               query = query_base
+              sha_number = 0
             end
+            sha_number += 1
             query += " " + sha
           end
           if query != query_base
